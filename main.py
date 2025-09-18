@@ -14,7 +14,7 @@ import logging
 import threading
 import time
 
-# Configurar logging para Google Cloud Run
+# Configurar logging para Google Cloud
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 # Criar app FastAPI
 app = FastAPI(
     title="YOLO Vehicle Damage Detection API",
-    description="API para detecção de danos em veículos usando YOLOv8 - VERSÃO CORRIGIDA",
-    version="3.1.0",
+    description="API para detecção de danos em veículos usando YOLOv8",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -80,9 +80,8 @@ def download_and_load_model():
     try:
         logger.info("🔄 Iniciando download do modelo YOLO...")
         
-        # Usar /tmp para armazenamento temporário (Cloud Run)
-        model_path = "/tmp/car_damage_best.pt"
-        
+        # Download do modelo
+        model_path = "/tmp/car_damage_best.pt"  # Usar /tmp no Cloud Run
         if not os.path.exists(model_path):
             model_url = "https://github.com/Vamap91/YOLOProject/releases/download/v2.0.0/car_damage_best.pt"
             
@@ -139,21 +138,16 @@ def root():
     """Endpoint raiz com informações da API."""
     uptime = datetime.now() - startup_time
     return {
-        "message": "🚗 YOLO Vehicle Damage Detection API - VERSÃO CORRIGIDA",
-        "version": "3.1.0",
+        "message": "🚗 YOLO Vehicle Damage Detection API",
+        "version": "2.0.0",
         "status": "running",
         "model_ready": model_ready,
         "uptime_seconds": int(uptime.total_seconds()),
-        "python_version": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
-        "environment": os.environ.get("K_SERVICE", "local"),
-        "dependencies_fixed": True,
-        "numpy_version_compatible": True,
         "endpoints": {
             "health": "/health",
             "ready": "/ready", 
             "detect": "/detect",
             "model_info": "/model/info",
-            "test_dependencies": "/test/dependencies",
             "docs": "/docs"
         }
     }
@@ -164,9 +158,7 @@ def health():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "service": "yolo-damage-detection",
-        "version": "3.1.0",
-        "dependencies_status": "fixed"
+        "service": "yolo-damage-detection"
     }
 
 @app.get("/ready")
@@ -176,89 +168,7 @@ def ready():
         "model_ready": model_ready,
         "model_error": model_error,
         "timestamp": datetime.now().isoformat(),
-        "uptime_seconds": int((datetime.now() - startup_time).total_seconds()),
-        "version": "3.1.0"
-    }
-
-@app.get("/test/dependencies")
-def test_dependencies():
-    """Testa se todas as dependências estão funcionando."""
-    results = {}
-    
-    try:
-        import numpy as np
-        results["numpy"] = {
-            "status": "OK",
-            "version": np.__version__,
-            "compatible": np.__version__.startswith("1.26")
-        }
-    except Exception as e:
-        results["numpy"] = {
-            "status": "ERROR",
-            "error": str(e)
-        }
-    
-    try:
-        import torch
-        results["torch"] = {
-            "status": "OK",
-            "version": torch.__version__,
-            "cuda_available": torch.cuda.is_available(),
-            "cpu_only": True
-        }
-    except Exception as e:
-        results["torch"] = {
-            "status": "ERROR",
-            "error": str(e)
-        }
-    
-    try:
-        import cv2
-        results["opencv"] = {
-            "status": "OK",
-            "version": cv2.__version__,
-            "headless": True
-        }
-    except Exception as e:
-        results["opencv"] = {
-            "status": "ERROR",
-            "error": str(e)
-        }
-    
-    try:
-        from ultralytics import YOLO
-        results["ultralytics"] = {
-            "status": "OK",
-            "available": True,
-            "version": "8.0.196"
-        }
-    except Exception as e:
-        results["ultralytics"] = {
-            "status": "ERROR",
-            "error": str(e)
-        }
-    
-    try:
-        from PIL import Image
-        results["pillow"] = {
-            "status": "OK",
-            "available": True
-        }
-    except Exception as e:
-        results["pillow"] = {
-            "status": "ERROR",
-            "error": str(e)
-        }
-    
-    # Status geral
-    all_ok = all(dep["status"] == "OK" for dep in results.values())
-    
-    return {
-        "overall_status": "OK" if all_ok else "ERROR",
-        "dependencies": results,
-        "timestamp": datetime.now().isoformat(),
-        "version": "3.1.0",
-        "fix_applied": True
+        "uptime_seconds": int((datetime.now() - startup_time).total_seconds())
     }
 
 @app.post("/detect")
@@ -293,7 +203,7 @@ async def detect_damage(
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
         
-        # Redimensionar se muito grande (otimização)
+        # Redimensionar se muito grande
         max_size = 1024
         if max(image.size) > max_size:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
@@ -359,12 +269,11 @@ async def detect_damage(
         response = {
             "inspection_info": {
                 "timestamp": datetime.now().isoformat(),
-                "inspector": "Sistema IA YOLO API v3.1 - CORRIGIDO",
-                "version": "3.1.0",
+                "inspector": "Sistema IA YOLO API",
+                "version": "2.0.0",
                 "original_filename": file.filename,
                 "processing_time_seconds": round(processing_time, 2),
-                "image_size": f"{image.size[0]}x{image.size[1]}",
-                "dependencies_fixed": True
+                "image_size": f"{image.size[0]}x{image.size[1]}"
             },
             "vehicle_info": {
                 "plate": vehicle_plate or "Não informado",
@@ -404,8 +313,7 @@ def model_info():
         return {
             "status": "not_ready",
             "error": model_error,
-            "message": "Modelo ainda não carregado",
-            "version": "3.1.0"
+            "message": "Modelo ainda não carregado"
         }
     
     return {
@@ -414,19 +322,13 @@ def model_info():
         "classes": list(DAMAGE_CONFIG['class_names'].values()),
         "total_classes": len(DAMAGE_CONFIG['class_names']),
         "status": "ready",
-        "model_ready": model_ready,
-        "version": "3.1.0",
-        "dependencies_fixed": True
+        "model_ready": model_ready
     }
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8080))  # Cloud Run usa 8080 por padrão
     logger.info(f"🚀 Iniciando servidor na porta {port}")
-    logger.info(f"🐍 Python version: {os.sys.version}")
-    logger.info(f"🌍 Environment: {os.environ.get('K_SERVICE', 'local')}")
-    logger.info(f"🔧 Versão com dependências corrigidas: 3.1.0")
-    
     uvicorn.run(
         app, 
         host="0.0.0.0", 
