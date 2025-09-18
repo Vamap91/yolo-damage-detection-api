@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import numpy as np
@@ -11,6 +11,9 @@ import io
 import base64
 from typing import Optional, List, Dict, Any
 import logging
+import asyncio
+import threading
+import time
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -59,64 +62,110 @@ DAMAGE_CONFIG = {
     }
 }
 
-# Variável global para o modelo
+# Variáveis globais
 model = None
+model_loading = False
+model_loaded = False
+app_ready = False
 
-@app.get("/")
-async def root():
-    """Endpoint raiz da API."""
-    return {
-        "message": "YOLO Vehicle Damage Detection API",
-        "version": "2.0.0",
-        "status": "running"
-    }
-
-@app.get("/health")
-async def health_check():
-    """Health check simples que sempre funciona."""
-    return {"status": "ok"}
-
-def download_model():
-    """Baixa o modelo do GitHub se não existir localmente."""
+def download_model_sync():
+    """Baixa o modelo do GitHub de forma síncrona."""
     model_path = "car_damage_best.pt"
     
     if not os.path.exists(model_path):
-        logger.info("Baixando modelo...")
+        logger.info("🔄 Baixando modelo...")
         model_url = "https://github.com/Vamap91/YOLOProject/releases/download/v2.0.0/car_damage_best.pt"
         
         try:
             response = requests.get(model_url, stream=True, timeout=300)
             response.raise_for_status()
             
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            
             with open(model_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
+                        downloaded += len(chunk)
             
-            logger.info("Modelo baixado!")
+            logger.info(f"✅ Modelo baixado! ({downloaded / 1024 / 1024:.1f}MB)")
             
         except Exception as e:
-            logger.error(f"Erro ao baixar modelo: {e}")
-            raise HTTPException(status_code=500, detail=f"Erro ao baixar modelo: {e}")
+            logger.error(f"❌ Erro ao baixar modelo: {e}")
+            raise e
     
     return model_path
 
-def load_model():
-    """Carrega o modelo YOLO."""
-    global model
+def load_model_sync():
+    """Carrega o modelo YOLO de forma síncrona."""
+    global model, model_loading, model_loaded
     
-    if model is None:
-        try:
-            from ultralytics import YOLO
-            model_path = download_model()
-            logger.info("Carregando modelo...")
-            model = YOLO(model_path)
-            logger.info("Modelo carregado!")
-        except Exception as e:
-            logger.error(f"Erro ao carregar modelo: {e}")
-            raise HTTPException(status_code=500, detail=f"Erro ao carregar modelo: {e}")
+    if model is not None:
+        return model
     
-    return model
+    model_loading = True
+    
+    try:
+        from ultralytics import YOLO
+        model_path = download_model_sync()
+        logger.info("🤖 Carregando modelo YOLO...")
+        model = YOLO(model_path)
+        model_loaded = True
+        logger.info("✅ Modelo carregado com sucesso!")
+        return model
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao carregar modelo: {e}")
+        raise e
+    finally:
+        model_loading = False
+
+def background_model_loader():
+    """Carrega o modelo em background thread."""
+    global app_ready
+    try:
+        time.sleep(2)  # Aguarda app inicializar
+        load_model_sync()
+        app_ready = True
+        logger.info("🚀 API totalmente pronta!")
+    except Exception as e:
+        logger.error(f"❌ Erro no carregamento em background: {e}")
+        app_ready = True  # Marca como pronta mesmo com erro
+
+# Iniciar carregamento em background
+threading.Thread(target=background_model_loader, daemon=True).start()
+
+@app.get("/")
+async def root():
+    """Endpoint raiz da API."""
+    return {
+        "message": "🚗 YOLO Vehicle Damage Detection API",
+        "version": "2.0.0",
+        "status": "running",
+        "model_status": "loaded" if model_loaded else ("loading" if model_loading else "not_loaded"),
+        "app_ready": app_ready
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check que SEMPRE retorna 200 OK."""
+    # SEMPRE retorna sucesso para passar no Railway
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "uptime": "ok"
+    }
+
+@app.get("/readiness")
+async def readiness_check():
+    """Endpoint separado para verificar se está realmente pronto."""
+    return {
+        "ready": app_ready,
+        "model_loaded": model_loaded,
+        "model_loading": model_loading,
+        "timestamp": datetime.now().isoformat()
+    }
 
 @app.post("/detect")
 async def detect_damage(
@@ -133,10 +182,21 @@ async def detect_damage(
     if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="Arquivo deve ser uma imagem")
     
+    # Verificar se modelo está carregado
+    if not model_loaded:
+        if model_loading:
+            raise HTTPException(
+                status_code=503, 
+                detail="Modelo ainda carregando. Aguarde alguns minutos e tente novamente."
+            )
+        else:
+            # Tentar carregar agora
+            try:
+                load_model_sync()
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Erro ao carregar modelo: {e}")
+    
     try:
-        # Carregar modelo se necessário
-        model = load_model()
-        
         # Ler e processar a imagem
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
@@ -232,18 +292,24 @@ async def detect_damage(
         return JSONResponse(content=response)
         
     except Exception as e:
-        logger.error(f"Erro na detecção: {e}")
+        logger.error(f"❌ Erro na detecção: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao processar imagem: {str(e)}")
 
 @app.get("/model/info")
 async def model_info():
     """Retorna informações sobre o modelo."""
+    if not model_loaded:
+        return {
+            "status": "not_loaded",
+            "message": "Modelo ainda não carregado"
+        }
+    
     return {
         "model_type": "YOLOv8",
         "model_file": "car_damage_best.pt",
         "classes": list(DAMAGE_CONFIG['class_names'].values()),
         "total_classes": len(DAMAGE_CONFIG['class_names']),
-        "status": "ready"
+        "status": "loaded"
     }
 
 if __name__ == "__main__":
