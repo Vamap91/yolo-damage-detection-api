@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Nova Atualização VINICIUS PASCHOA
+# Instalar dependências mínimas do sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar requirements e instalar dependências Python
+# Copiar requirements primeiro (para cache do Docker)
 COPY requirements.txt .
 
 # Instalar dependências Python
@@ -34,5 +34,5 @@ ENV PORT=8000
 # Expor porta
 EXPOSE $PORT
 
-# Comando para iniciar a aplicação
-CMD uvicorn main:app --host $HOST --port $PORT --timeout-keep-alive 300
+# Comando para iniciar - SEM timeout customizado
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
