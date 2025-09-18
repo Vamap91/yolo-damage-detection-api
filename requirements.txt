@@ -1,21 +1,8 @@
-# Dependências principais
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
-
-# Processamento de imagem
 pillow==10.0.1
 numpy==1.24.3
-
-# OpenCV HEADLESS (sem dependências gráficas)
-opencv-python-headless==4.8.1.78
-
-# YOLO
 ultralytics==8.0.196
-
-# Utilitários
 requests==2.31.0
-
-# Torch CPU-only (mais leve para Cloud Run)
-torch==2.0.1+cpu --find-links https://download.pytorch.org/whl/torch_stable.html
-torchvision==0.15.2+cpu --find-links https://download.pytorch.org/whl/torch_stable.html
+opencv-python-headless==4.8.1.78
