@@ -1,6 +1,12 @@
 FROM python:3.11-slim
 
-# CORREÇÃO: Nomes dos pacotes atualizados para Debian Trixie
+# Configurar ambiente não-interativo
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Instalar dependências de sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
@@ -15,16 +21,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Copiar requirements
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge
 
+# Instalar dependências Python de forma mais robusta
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copiar código
 COPY main.py .
 
-ENV PYTHONUNBUFFERED=1
+# Configurar porta
 ENV PORT=8000
-
 EXPOSE $PORT
 
+# Comando de execução
 CMD ["python", "main.py"]
