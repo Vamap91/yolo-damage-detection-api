@@ -86,7 +86,8 @@ def download_and_load_model():
             model_url = "https://github.com/Vamap91/YOLOProject/releases/download/v2.0.0/car_damage_best.pt"
             
             logger.info(f"📥 Baixando modelo de: {model_url}")
-            response = requests.get(model_url, stream=True, timeout=600)
+            # Aumentar timeout para Google Cloud
+            response = requests.get(model_url, stream=True, timeout=900)
             response.raise_for_status()
             
             total_size = int(response.headers.get('content-length', 0))
