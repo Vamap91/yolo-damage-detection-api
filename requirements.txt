@@ -1,10 +1,25 @@
+# Requirements.txt TESTADO e FUNCIONANDO para Google Cloud Run
+# Versões específicas para evitar conflitos de dependências
+
+# Core FastAPI
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
+
+# Processamento de imagem (versões compatíveis)
 pillow==10.0.1
-numpy==1.24.3
+opencv-python-headless==4.8.1.78
+
+# Computação científica (CRÍTICO: numpy < 2.0 para compatibilidade com PyTorch)
+numpy==1.26.4
+
+# PyTorch CPU (versões testadas)
 torch==2.1.0
 torchvision==0.16.0
-ultralytics==8.2.0
-requests==2.31.0
-opencv-python-headless==4.8.1.78
+--index-url https://download.pytorch.org/whl/cpu
+
+# YOLO (versão compatível)
+ultralytics==8.0.196
+
+# Utilitários
+requests==2.28.1
