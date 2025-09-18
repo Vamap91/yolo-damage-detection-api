@@ -1,28 +1,24 @@
 FROM python:3.11-slim
 
-# Instalar dependências do sistema necessárias para OpenCV
-RUN apt-get update && apt-get install -y \
+# Nova Atualização VINICIUS PASCHOA
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
     libgomp1 \
-    libgthread-2.0-0 \
-    libfontconfig1 \
-    libgtk-3-0 \
     wget \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar requirements primeiro para cache de layers
+# Copiar requirements e instalar dependências Python
 COPY requirements.txt .
 
 # Instalar dependências Python
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge
 
 # Copiar código da aplicação
 COPY main.py .
@@ -38,9 +34,5 @@ ENV PORT=8000
 # Expor porta
 EXPOSE $PORT
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:$PORT/health || exit 1
-
 # Comando para iniciar a aplicação
-CMD uvicorn main:app --host $HOST --port $PORT
+CMD uvicorn main:app --host $HOST --port $PORT --timeout-keep-alive 300
